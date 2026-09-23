@@ -1,0 +1,56 @@
+name: Build macOS Plugin
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [ main ]
+
+jobs:
+  build:
+    runs-on: macos-15
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Configure
+        run: |
+          cmake -S . -B build -G Xcode \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_OSX_ARCHITECTURES="arm64;x86_64" \
+            -DCMAKE_OSX_DEPLOYMENT_TARGET=11.0
+
+      - name: Build
+        run: cmake --build build --config Release --parallel 3
+
+      - name: Ad-hoc sign
+        run: |
+          codesign --force --deep --sign - \
+            "build/PrimaTakePerspective_artefacts/Release/VST3/Prima Take Perspective.vst3"
+
+          codesign --force --deep --sign - \
+            "build/PrimaTakePerspective_artefacts/Release/AU/Prima Take Perspective.component"
+
+      - name: Package
+        run: |
+          mkdir -p dist
+
+          ditto -c -k --sequesterRsrc --keepParent \
+            "build/PrimaTakePerspective_artefacts/Release/VST3/Prima Take Perspective.vst3" \
+            "dist/PrimaTakePerspective-VST3-macOS-universal.zip"
+
+          ditto -c -k --sequesterRsrc --keepParent \
+            "build/PrimaTakePerspective_artefacts/Release/AU/Prima Take Perspective.component" \
+            "dist/PrimaTakePerspective-AU-macOS-universal.zip"
+
+      - name: Upload VST3
+        uses: actions/upload-artifact@v4
+        with:
+          name: PrimaTakePerspective-VST3-macOS-universal
+          path: dist/PrimaTakePerspective-VST3-macOS-universal.zip
+
+      - name: Upload AU
+        uses: actions/upload-artifact@v4
+        with:
+          name: PrimaTakePerspective-AU-macOS-universal
+          path: dist/PrimaTakePerspective-AU-macOS-universal.zip
